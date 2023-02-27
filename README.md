@@ -17,7 +17,7 @@ pip install fbprophet
 ```
 
 ## Method
-General pipeline of our method is presented below. The main idea is to use the clustering approach on allocated regimes. For a detail description see the article.
+We have proposed three new methods: CLFF, CLGAN, CLSGAN. General pipeline of our method is presented below. The main idea is to use the clustering approach on allocated regimes. For a detail description see the article.
 ![Pipeline](https://github.com/AlgoMathITMO/CLSGAN/blob/main/images/pipeline_V3-1.png)
 
 We also proposed the modification of existing GAN architectures, adding Supervisor and second Discriminator.
