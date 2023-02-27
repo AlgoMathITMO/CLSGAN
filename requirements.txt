@@ -1,0 +1,9 @@
+pip install ruptures
+pip install stumpy
+pip install scipy
+pip install sklearn
+pip install torch torchvision
+pip install yfinance
+pip install pyts
+pip install statsmodels
+pip install fbprophet
