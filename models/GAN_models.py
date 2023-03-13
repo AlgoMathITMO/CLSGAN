@@ -155,7 +155,7 @@ def clsgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_size=
         optimizer_D = optim.RMSprop(discriminator.parameters(), lr=lr)
         optimizer_D2 = optim.RMSprop(discriminator2.parameters(), lr=lr)
         optimizer_G = optim.RMSprop(generator.parameters(), lr=lr)
-        optimizer_S = optim.RMSprop(supervisor.parameters(), lr=0.001)
+        optimizer_S = optim.RMSprop(supervisor.parameters(), lr=0.0005)
 
         # scheduler_G = optim.lr_scheduler.MultiStepLR(optimizer_G, milestones=[5], gamma=0.1)
         # scheduler_D = optim.lr_scheduler.MultiStepLR(optimizer_D, milestones=[5], gamma=0.1)
@@ -235,7 +235,7 @@ def clsgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_size=
 
                     # s_loss = loss_mse(supervisor(generator(noise).detach()), real_grad) +\
                     s_loss = torch.mean(torch.log(discriminator2(supervisor(generator(noise))))) + \
-                             loss_mse(supervisor(generator(noise).detach()), real_grad)
+                             3*loss_mse(supervisor(generator(noise).detach()), real_grad)
 
 
                     optimizer_S.zero_grad()
