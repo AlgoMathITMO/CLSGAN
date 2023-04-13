@@ -76,22 +76,26 @@ def quantgan_preprocessing(df):
 
 def quantgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_size=80, z_dim=3, train=True):
     clip= 0.01
-    lr = 0.0002
+    lr = 0.0009
     train = train
     # receptive_field_size = 127  # p. 17
     # data_size = log_returns.shape[0]
-    generator = Generator(z_dim).to(device)
-    discriminator = Discriminator(seq_len).to(device)
+    generator = Generator(z_dim, batch_size).to(device)
+    discriminator = Discriminator(seq_len, batch_size).to(device)
 
     dataset = Loader32(log_returns_preprocessed, seq_len)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
     if train:
-        optimizer_D = optim.RMSprop(discriminator.parameters(), lr=lr)
-        optimizer_G = optim.RMSprop(generator.parameters(), lr=lr)
+        # optimizer_D = optim.RMSprop(discriminator.parameters(), lr=lr)
+        # optimizer_G = optim.RMSprop(generator.parameters(), lr=lr)
+        optimizer_D = optim.Adam(discriminator.parameters(), lr=lr)
+        optimizer_G = optim.Adam(generator.parameters(), lr=lr)
 
         # scheduler_G = optim.lr_scheduler.MultiStepLR(optimizer_G, milestones=[3, 7], gamma=0.1)
         # scheduler_D = optim.lr_scheduler.MultiStepLR(optimizer_D, milestones=[3, 7], gamma=0.1)
+        scheduler_G = optim.lr_scheduler.ExponentialLR(optimizer_G, gamma=0.96)
+        scheduler_D = optim.lr_scheduler.ExponentialLR(optimizer_D, gamma=0.96)
 
         scores_gen = []
         scores_disc = []
@@ -127,8 +131,8 @@ def quantgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_siz
                     gen_loss.backward()
                     optimizer_G.step()
 
-            # scheduler_D.step()
-            # scheduler_G.step()
+            scheduler_D.step()
+            scheduler_G.step()
             # t.set_description('Discriminator Loss: %.8f Generator Loss: %.8f' % (disc_loss.item(), gen_loss.item()))
             t.set_description('Discriminator Loss: %.7f || Generator Loss: %.5f' % (disc_loss.item(), gen_loss.item()))
             scores_gen.append(gen_loss.item())
@@ -139,28 +143,32 @@ def quantgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_siz
 
 def clsgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_size=80, z_dim=3, train=True):
     clip= 0.01
-    lr = 0.0002
+    lr = 0.0009
     train = train
     # receptive_field_size = 127  # p. 17
     # data_size = log_returns.shape[0]
-    generator = Generator(z_dim).to(device)
-    supervisor = Supervisor(1, seq_len).to(device)
-    discriminator = Discriminator(seq_len).to(device)
-    discriminator2 = Discriminator(seq_len).to(device)
+    generator = Generator_normed(z_dim, batch_size).to(device)
+    supervisor = Supervisor(1, batch_size).to(device)
+    discriminator = Discriminator(seq_len, batch_size).to(device)
+    discriminator2 = Discriminator(seq_len, batch_size).to(device)
 
     dataset = Loader32(log_returns_preprocessed, seq_len)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
     if train:
-        optimizer_D = optim.RMSprop(discriminator.parameters(), lr=lr)
-        optimizer_D2 = optim.RMSprop(discriminator2.parameters(), lr=lr)
-        optimizer_G = optim.RMSprop(generator.parameters(), lr=lr)
-        optimizer_S = optim.RMSprop(supervisor.parameters(), lr=0.0005)
+        optimizer_D = optim.Adam(discriminator.parameters(), lr=lr)
+        optimizer_D2 = optim.Adam(discriminator2.parameters(), lr=lr)
+        optimizer_G = optim.Adam(generator.parameters(), lr=lr)
+        optimizer_S = optim.Adam(supervisor.parameters(), lr=0.001)
 
         # scheduler_G = optim.lr_scheduler.MultiStepLR(optimizer_G, milestones=[5], gamma=0.1)
         # scheduler_D = optim.lr_scheduler.MultiStepLR(optimizer_D, milestones=[5], gamma=0.1)
         # scheduler_D2 = optim.lr_scheduler.MultiStepLR(optimizer_D2, milestones=[5], gamma=0.1)
         # scheduler_S = optim.lr_scheduler.MultiStepLR(optimizer_S, milestones=[5], gamma=0.1)
+        scheduler_G = optim.lr_scheduler.ExponentialLR(optimizer_G, gamma=0.96)
+        scheduler_D = optim.lr_scheduler.ExponentialLR(optimizer_D, gamma=0.96)
+        scheduler_D2 = optim.lr_scheduler.ExponentialLR(optimizer_D2, gamma=0.96)
+        scheduler_S = optim.lr_scheduler.ExponentialLR(optimizer_S, gamma=0.96)
 
         scores_gen = []
         scores_disc1 = []
@@ -246,10 +254,10 @@ def clsgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_size=
                     #     sp.data.clamp_(-0.01, 0.01)
                     # torch.nn.utils.clip_grad_norm_(supervisor.parameters(), 1, norm_type=2.0)
 
-            # scheduler_D.step()
-            # scheduler_D2.step()
-            # scheduler_G.step()
-            # scheduler_S.step()
+            scheduler_D.step()
+            scheduler_D2.step()
+            scheduler_G.step()
+            scheduler_S.step()
             # t.set_description('Discriminator Loss: %.8f Generator Loss: %.8f' % (disc_loss.item(), gen_loss.item()))
             t.set_description('D1 Loss: %.7f || D2 Loss: %.7f || G Loss: %.5f || S Loss: %.5f' % (disc_loss.item(), disc2_loss.item(), gen_loss.item(), s_loss.item()))
             scores_gen.append(gen_loss.item())
@@ -261,7 +269,7 @@ def clsgan_fit(log_returns_preprocessed, num_epochs=30, seq_len=127, batch_size=
     return generator, supervisor, np.array([scores_gen, scores_disc1, scores_disc2, scores_super])
 
 def quantGAN_generate_synth(generator, log_returns, ts, standardScaler1, standardScaler2, gaussianize, z_dim):
-    generator.eval()
+    # generator.eval()
     noise = torch.randn(10, z_dim, len(ts)).to(device)
     y = generator(noise).cpu().detach().squeeze()
 
@@ -286,14 +294,13 @@ def clsgan_preprocessing(df):
     gaussianize = Gaussianize()
     log_returns_preprocessed = standardScaler2.fit_transform(gaussianize.fit_transform(standardScaler1.fit_transform(log_returns)))
 
-    max_el = 1
-    # max_el = np.max(np.abs(log_returns_preprocessed))
-    # log_returns_preprocessed /= max_el
+    # max_el = 1
+    max_el = np.max(np.abs(log_returns_preprocessed))
+    log_returns_preprocessed /= max_el
 
     return log_returns_preprocessed, log_returns, standardScaler1, standardScaler2, gaussianize, max_el
 
 def generate_sample_CLSGAN(generator, supervisor, log_returns, ts, standardScaler1, standardScaler2, gaussianize, m, z_dim):
-    generator.eval()
     noise = torch.randn(10, z_dim, len(ts)).to(device)
     y = supervisor(generator(noise)).cpu().detach().squeeze()
     y = y * m

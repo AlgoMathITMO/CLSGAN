@@ -25,7 +25,7 @@ class TemporalBlock(nn.Module):
     Returns:
         tuple of output layers
     """
-    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.02):
+    def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.1):
         super(TemporalBlock, self).__init__()
         self.conv1 = nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation)
         self.chomp1 = Chomp1d(padding)
@@ -39,8 +39,8 @@ class TemporalBlock(nn.Module):
 
         # self.convh = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=1, dilation=dilation, padding='same'))
         # self.reluh = nn.ReLU()
-        self.batchnorm1 = nn.BatchNorm1d(n_outputs)
-        self.batchnorm2 = nn.BatchNorm1d(n_outputs)
+        # self.batchnorm1 = nn.BatchNorm1d(n_outputs)
+        # self.batchnorm2 = nn.BatchNorm1d(n_outputs)
 
         # self.maxpool1 = nn.MaxPool1d(kernel_size=2, stride=1)
         # self.maxpool2 = nn.MaxPool1d(kernel_size=2, stride=1)
@@ -63,8 +63,8 @@ class TemporalBlock(nn.Module):
 
         self.downsample = nn.Conv1d(n_inputs, n_outputs, 1) if n_inputs != n_outputs else None
 
-        self.relu = nn.LeakyReLU(0.05)
-        self.init_weights()
+        self.relu = nn.LeakyReLU(0.2)
+        # self.init_weights()
 
     def init_weights(self):
         # self.conv1.weight.data.normal_(0, 0.5)
@@ -84,14 +84,14 @@ class TemporalBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self,  z_dim):
+    def __init__(self,  z_dim, batch_size):
         super(Generator, self).__init__()
         self.hidden = 80
         self.tcn = nn.ModuleList([TemporalBlock(z_dim, self.hidden, kernel_size=1, stride=1, dilation=1, padding=0),
                                  *[TemporalBlock(self.hidden, self.hidden, kernel_size=2, stride=1, dilation=i, padding=i) for i in [1, 2, 4, 8, 16, 32]]])
         self.last = nn.Conv1d(self.hidden, 1, kernel_size=1, stride=1, dilation=1)
-
-        self.init_weights()
+        self.layernorm = nn.BatchNorm1d(batch_size)
+        # self.init_weights()
 
     def init_weights(self):
         # self.last.weight.data.normal_(0, 0.5)
@@ -101,13 +101,14 @@ class Generator(nn.Module):
         skip_layers = []
         for layer in self.tcn:
             skip, x = layer(x)
+            x = self.layernorm(x)
             skip_layers.append(skip)
         x = self.last(x + sum(skip_layers))
         return x
 
 
 class Discriminator(nn.Module):
-    def __init__(self, seq_len):
+    def __init__(self, seq_len, batch_size):
         super(Discriminator, self).__init__()
         self.hidden = 80
         self.tcn = nn.ModuleList([TemporalBlock(1, self.hidden, kernel_size=1, stride=1, dilation=1, padding=0),
@@ -117,8 +118,9 @@ class Discriminator(nn.Module):
         #                              nn.Sigmoid())
                                      # nn.Linear(2**6, 1),
                                      nn.Sigmoid())
+        self.layernorm = nn.BatchNorm1d(batch_size)
 
-        self.init_weights()
+        # self.init_weights()
 
     def init_weights(self):
         # self.last.weight.data.normal_(0, 0.5)
@@ -128,20 +130,21 @@ class Discriminator(nn.Module):
         skip_layers = []
         for layer in self.tcn:
             skip, x = layer(x)
+            x = self.layernorm(x)
             skip_layers.append(skip)
         x = self.last(x + sum(skip_layers))
         return self.to_prob(x).squeeze()
 
 class Generator_normed(nn.Module):
-    def __init__(self,  z_dim):
+    def __init__(self,  z_dim, batch_size):
         super(Generator_normed, self).__init__()
         self.hidden = 80
         self.tcn = nn.ModuleList([TemporalBlock(z_dim, self.hidden, kernel_size=1, stride=1, dilation=1, padding=0),
                                  *[TemporalBlock(self.hidden, self.hidden, kernel_size=2, stride=1, dilation=i, padding=i) for i in [1, 2, 4, 8, 16, 32]]])
         self.last = nn.Conv1d(self.hidden, 1, kernel_size=1, stride=1, dilation=1)
         self.tanh = nn.Tanh()
-
-        self.init_weights()
+        self.layernorm = nn.BatchNorm1d(batch_size)
+        # self.init_weights()
 
     def init_weights(self):
         # self.last.weight.data.normal_(0, 0.5)
@@ -151,23 +154,25 @@ class Generator_normed(nn.Module):
         skip_layers = []
         for layer in self.tcn:
             skip, x = layer(x)
+            x = self.layernorm(x)
             skip_layers.append(skip)
         x = self.last(x + sum(skip_layers))
         return self.tanh(x)
 
 class Supervisor(nn.Module):
-    def __init__(self, z_dim, seq_len):
+    def __init__(self, z_dim, batch_size):
         super(Supervisor, self).__init__()
-        self.hidden = 60
+        self.hidden = 80
         self.tcn = nn.ModuleList([TemporalBlock(z_dim, self.hidden, kernel_size=1, stride=1, dilation=1, padding=0),
                                  *[TemporalBlock(self.hidden, self.hidden, kernel_size=2, stride=1, dilation=i, padding=i) for i in [1, 2, 4, 8, 16, 32]]])
         self.last = nn.Conv1d(self.hidden, 1, kernel_size=1, stride=1, dilation=1)
-        # self.tanh = nn.Tanh()
+        self.layernorm = nn.BatchNorm1d(batch_size)
+        self.tanh = nn.Tanh()
         # self.fc = nn.Sequential(nn.Linear(seq_len, 2**8),
         #                         nn.ReLU(),
         #                         nn.Linear(2**8, seq_len))
 
-        self.init_weights()
+        # self.init_weights()
 
     def init_weights(self):
         # self.last.weight.data.normal_(0, 0.5)
@@ -177,8 +182,9 @@ class Supervisor(nn.Module):
         skip_layers = []
         for layer in self.tcn:
             skip, x = layer(x)
+            x = self.layernorm(x)
             skip_layers.append(skip)
         x = self.last(x + sum(skip_layers))
-        # return self.tanh(x)
+        return self.tanh(x)
         # out = self.fc(x)
-        return x
+        # return x

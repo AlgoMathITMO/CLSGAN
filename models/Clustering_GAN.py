@@ -79,7 +79,7 @@ def CLSGAN_training(time_series, epochs=50, seq_len=2**7, batch_size=2**5, n_fcl
 #         X_ssa = decomposition.fit_transform(log_returns_preprocessed.reshape(1, -1))
         X_decomposed = [log_returns_preprocessed.T[0]]
         for i in range(groups):
-            X_decomposed.append(log_returns_preprocessed.T[0] + np.random.normal(0, 0.1, size=len(log_returns_preprocessed.T[0])))
+            X_decomposed.append(log_returns_preprocessed.T[0] + np.random.normal(0, 0.2, size=len(log_returns_preprocessed.T[0])))
         ts_processed = np.array([np.hstack(X_decomposed)])
 
         generators = []
